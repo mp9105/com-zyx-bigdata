@@ -17,13 +17,13 @@ public class Streaming2RowFormatFile {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
         // 指定Hadoop用户名称
-        System.setProperty("HADOOP_USER_NAME", "hdfs");
+        System.setProperty("HADOOP_USER_NAME", "root");
 
         DataStreamSource<String> input = env.socketTextStream("linux201", 6666);
         // Flink1.9已将BucketingSink置为过时的类, 推荐使用StreamingFileSink
         // BucketingSink<String> hadoopSink = new BucketingSink<>("file:///C:\\Users\\43832\\Desktop\\out\\rowformat\\");
         BucketingSink<String> hadoopSink = new BucketingSink<>("hdfs://linux201:8020/data/");
-        hadoopSink.setBucketer(new DateTimeBucketer<>("yyyy-MM-dd-HH", ZoneId.of("Asia/Shanghai")));
+        hadoopSink.setBucketer(new DateTimeBucketer<>("yyyy-MM-dd/HH-mm", ZoneId.of("Asia/Shanghai")));
         // 10秒钟滚动一次
         hadoopSink.setBatchRolloverInterval(10000);
         // 文件达到10MB滚动一次
