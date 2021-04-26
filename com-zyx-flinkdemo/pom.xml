@@ -31,6 +31,12 @@
     </properties>
 
     <dependencies>
+        <!-- 解析json所需依赖 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>${fastjson.version}</version>
+        </dependency>
         <!-- flink的hadoop兼容 -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
@@ -95,6 +101,12 @@
             <artifactId>flink-parquet_${scala.version}</artifactId>
             <version>${flink.version}</version>
             <scope>${project.build.scope}</scope>
+        </dependency>
+        <!--lomback插件依赖-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.12</version>
         </dependency>
     </dependencies>
     <build>
