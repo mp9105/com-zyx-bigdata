@@ -13,9 +13,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserInfo {
-    private String userId;
-    private String groupId;
-    private int targetCount;
+public class MarketInfo {
+    private String id;
+    private String group;
+    private int price;
     private long sendTime;
 }

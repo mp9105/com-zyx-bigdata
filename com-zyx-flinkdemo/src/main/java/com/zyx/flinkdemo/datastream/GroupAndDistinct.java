@@ -2,7 +2,8 @@ package com.zyx.flinkdemo.datastream;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.zyx.flinkdemo.pojo.UserInfo;
+import com.zyx.flinkdemo.pojo.MarketInfo;
+import com.zyx.flinkdemo.prepare.MarketInfoPrepare;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -10,10 +11,11 @@ import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -28,76 +30,85 @@ import java.util.TreeSet;
 /**
  * @author Yaxi.Zhang
  * @since 2021/4/26 14:19
- * desc: 对用户信息按照group进行分组并在窗口内去重排序
+ * desc: 对交易信息在一个窗口内按照group进行分组, 在窗口内进行去重并按照最新的价格进行排序
  */
 public class GroupAndDistinct {
     public static void main(String[] args) throws Exception {
+        MarketInfoPrepare.sourcePrepare();
+        System.out.println("================== 文件准备完毕 ==================");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
         // 获取数据源并提取事件时间
-        SingleOutputStreamOperator<UserInfo> userInfoTsInfo = env
-                .readTextFile("input/userInfo.txt")
-                .map(new MapFunction<String, UserInfo>() {
+        env.setParallelism(1);
+        env
+                .readTextFile("input/marketInfo.txt")
+                .map(new MapFunction<String, MarketInfo>() {
                     @Override
-                    public UserInfo map(String value) throws Exception {
-                        return JSONObject.parseObject(value, UserInfo.class);
+                    public MarketInfo map(String value) throws Exception {
+                        return JSONObject.parseObject(value, MarketInfo.class);
                     }
                 })
                 .assignTimestampsAndWatermarks(
-                        WatermarkStrategy.<UserInfo>forMonotonousTimestamps()
-                                .withTimestampAssigner(new SerializableTimestampAssigner<UserInfo>() {
+                        WatermarkStrategy.<MarketInfo>forMonotonousTimestamps()
+                                .withTimestampAssigner(new SerializableTimestampAssigner<MarketInfo>() {
                                     @Override
-                                    public long extractTimestamp(UserInfo element, long recordTimestamp) {
+                                    public long extractTimestamp(MarketInfo element, long recordTimestamp) {
                                         return element.getSendTime();
                                     }
                                 })
-                );
-        userInfoTsInfo
+                )
                 // 按照groupId分组
-                .keyBy(UserInfo::getGroupId)
+                .keyBy(MarketInfo::getGroup)
                 // 开1秒钟的滚动窗口
                 .window(TumblingEventTimeWindows.of(Time.seconds(1)))
                 // 获取关窗时间并与原用户信息进行拼接
-                .process(new ProcessWindowFunction<UserInfo, Tuple2<Long, UserInfo>, String, TimeWindow>() {
+                .process(new ProcessWindowFunction<MarketInfo, Tuple2<Long, MarketInfo>, String, TimeWindow>() {
                     @Override
                     public void process(String key,
                                         Context ctx,
-                                        Iterable<UserInfo> userInfos,
-                                        Collector<Tuple2<Long, UserInfo>> out) throws Exception {
-                        for (UserInfo userInfo : userInfos) {
-                            out.collect(Tuple2.of(ctx.window().getEnd(), userInfo));
+                                        Iterable<MarketInfo> marketInfos,
+                                        Collector<Tuple2<Long, MarketInfo>> out) throws Exception {
+                        for (MarketInfo marketInfo : marketInfos) {
+                            out.collect(Tuple2.of(ctx.window().getEnd(), marketInfo));
                         }
                     }
                 })
                 // 按照关窗时间进行分组
-                .keyBy(new KeySelector<Tuple2<Long, UserInfo>, Tuple2<Long, String>>() {
+                .keyBy(new KeySelector<Tuple2<Long, MarketInfo>, Long>() {
                     @Override
-                    public Tuple2<Long, String> getKey(Tuple2<Long, UserInfo> value) throws Exception {
-                        return Tuple2.of(value.f0, value.f1.getGroupId());
+                    public Long getKey(Tuple2<Long, MarketInfo> value) throws Exception {
+                        return value.f0;
                     }
                 })
                 // 对结果进行排序
-                .process(new KeyedProcessFunction<Tuple2<Long, String>, Tuple2<Long, UserInfo>, String>() {
+                .process(new KeyedProcessFunction<Long, Tuple2<Long, MarketInfo>, String>() {
                     private ValueState<Long> timerState;
-                    private MapState<String, UserInfo> userInfoState;
-                    private MapState<String, TreeSet> resState;
-
+                    private MapState<Tuple2<String, String>, MarketInfo> marketInfoState;
+                    private MapState<String, TreeSet<MarketInfo>> resultState;
                     @Override
                     public void open(Configuration parameters) throws Exception {
                         // 初始化状态量
                         timerState = getRuntimeContext()
-                                .getState(new ValueStateDescriptor<Long>("timer_state", Long.class));
-                        userInfoState = getRuntimeContext()
-                                .getMapState(new MapStateDescriptor<String, UserInfo>("user_info_state", String.class, UserInfo.class));
-                        resState = getRuntimeContext()
-                                .getMapState(new MapStateDescriptor<>("result_state", String.class, TreeSet.class));
+                                .getState(new ValueStateDescriptor<>("timer_state", Long.class));
+                        marketInfoState = getRuntimeContext()
+                                .getMapState(new MapStateDescriptor<>(
+                                        "market_info_state",
+                                        TypeInformation.of(new TypeHint<Tuple2<String, String>>() {
+                                        }),
+                                        TypeInformation.of(new TypeHint<MarketInfo>() {
+                                        })));
+                        resultState = getRuntimeContext()
+                                .getMapState(new MapStateDescriptor<>(
+                                        "result_state",
+                                        TypeInformation.of(new TypeHint<String>() {
+                                        }),
+                                        TypeInformation.of(new TypeHint<TreeSet<MarketInfo>>() {
+                                        })));
                     }
-
                     @Override
-                    public void processElement(Tuple2<Long, UserInfo> value,
+                    public void processElement(Tuple2<Long, MarketInfo> value,
                                                Context ctx,
                                                Collector<String> out) throws Exception {
-                        userInfoState.put(value.f1.getUserId(), value.f1);
+                        marketInfoState.put(Tuple2.of(value.f1.getId(), value.f1.getGroup()), value.f1);
                         if (timerState.value() == null) {
                             // 窗口关闭10ms后触发操作
                             long timer = value.f0 + 10L;
@@ -105,44 +116,49 @@ public class GroupAndDistinct {
                             timerState.update(timer);
                         }
                     }
-
                     @Override
                     public void onTimer(long timestamp,
                                         OnTimerContext ctx,
                                         Collector<String> out) throws Exception {
                         // 触发操作时进行排序
                         // 获取group
-                        for (UserInfo userInfo : userInfoState.values()) {
-                            TreeSet treeSet = resState.get(userInfo.getGroupId());
+                        for (MarketInfo userInfo : marketInfoState.values()) {
+                            TreeSet<MarketInfo> treeSet = resultState.get(userInfo.getGroup());
                             if (treeSet == null) {
                                 treeSet = new TreeSet<>((o1, o2) -> {
-                                    UserInfo ui1 = (UserInfo) o1;
-                                    UserInfo ui2 = (UserInfo) o2;
-                                    int result = Integer.compare(ui2.getTargetCount(), ui1.getTargetCount());
-                                    return result == 0 ? 1 : result;  // 不让返回0, 是为了必须treeSet去重
+                                    int result = Integer.compare(o2.getPrice(), o1.getPrice());
+                                    // 不让返回0, 是为了必须treeSet去重
+                                    return result == 0 ? 1 : result;
                                 });
                             }
                             treeSet.add(userInfo);
                             if (treeSet.size() > 3) {
                                 treeSet.pollLast();
                             }
-                            resState.put(userInfo.getGroupId(), treeSet);
+                            resultState.put(userInfo.getGroup(), treeSet);
                         }
-
-                        JSONObject jsonObject = new JSONObject();
+                        // 拼接结果
                         JSONArray jsonArray = new JSONArray();
-                        for (String key : resState.keys()) {
-                            jsonObject.put(key, resState.get(key));
+                        for (String key : resultState.keys()) {
+                            JSONObject jsonObject = new JSONObject();
+                            jsonObject.put("induCode", key);
+                            jsonObject.put("timestamp", timestamp - 10L);
+                            jsonObject.put("tops", resultState.get(key));
+                            jsonArray.add(jsonObject);
                         }
-
+                        JSONObject resultJsonObject = new JSONObject();
+                        resultJsonObject.put("type", "L2-TOP-10");
+                        resultJsonObject.put("data", jsonArray);
+                        //resultJsonObject.put("ts", timestamp - 10L);
+                        // 收集结果
+                        out.collect(resultJsonObject.toJSONString());
                         // 清空状态
                         timerState.clear();
-                        userInfoState.clear();
-                        resState.clear();
+                        marketInfoState.clear();
+                        resultState.clear();
                     }
                 })
                 .print();
-
         env.execute();
     }
 }
