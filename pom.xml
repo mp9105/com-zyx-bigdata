@@ -12,6 +12,7 @@
         <module>com-zyx-flinkdemo</module>
         <module>com-zyx-kafkademo</module>
         <module>com-zyx-javademo</module>
+        <module>com-zyx-jdbcdemo</module>
     </modules>
     <build>
         <plugins>
