@@ -19,6 +19,5 @@ public class JsonDemo {
         jsonArray.add(jsonObject1);
         jsonArray.add(jsonObject2);
         System.out.println(jsonArray.toJSONString());
-
     }
 }

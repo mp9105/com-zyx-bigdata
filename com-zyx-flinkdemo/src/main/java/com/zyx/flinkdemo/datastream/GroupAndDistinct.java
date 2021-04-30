@@ -3,7 +3,6 @@ package com.zyx.flinkdemo.datastream;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.zyx.flinkdemo.pojo.MarketInfo;
-import com.zyx.flinkdemo.prepare.MarketInfoPrepare;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -34,8 +33,8 @@ import java.util.TreeSet;
  */
 public class GroupAndDistinct {
     public static void main(String[] args) throws Exception {
-        MarketInfoPrepare.sourcePrepare();
-        System.out.println("================== 文件准备完毕 ==================");
+        // MarketInfoPrepare.sourcePrepare();
+        // System.out.println("================== 文件准备完毕 ==================");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // 获取数据源并提取事件时间
         env.setParallelism(1);
