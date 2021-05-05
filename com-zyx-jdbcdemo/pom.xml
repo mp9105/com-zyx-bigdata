@@ -18,9 +18,11 @@
             <version>1.2.6</version>
         </dependency>
         <dependency>
+            <!-- 5.1.47版本驱动插入datetime类型数据报错，参考
+                http://www.cxyzjd.com/article/asdfsfsdgdfgh/107917407 -->
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>5.1.47</version>
+            <version>5.1.46</version>
         </dependency>
     </dependencies>
 
