@@ -13,6 +13,7 @@
         <module>com-zyx-kafkademo</module>
         <module>com-zyx-javademo</module>
         <module>com-zyx-jdbcdemo</module>
+        <module>com-zyx-scalademo</module>
     </modules>
     <build>
         <plugins>
