@@ -1,4 +1,4 @@
-package com.zyx.javademo.collection.setdemo;
+package com.zyx.javademo.collection.set;
 
 import java.util.*;
 
