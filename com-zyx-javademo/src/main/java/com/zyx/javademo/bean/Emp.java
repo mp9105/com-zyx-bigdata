@@ -6,14 +6,13 @@ import lombok.NoArgsConstructor;
 
 /**
  * @author Yaxi.Zhang
- * @since 2021/5/6 14:27
- * desc: 用户类
+ * @since 2021/5/7 17:12
+ * desc: 雇员类
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Emp {
     String name;
-    int age;
-    int height;
+    String age;
 }

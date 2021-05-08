@@ -13,8 +13,8 @@ import java.util.*;
 public class CollectionsDemo {
     @Test
     public void testSingleton() {
-        User user1 = new User("zhangsan", 20);
-        User user2 = new User("lisi2", 20);
+        User user1 = new User("zhangsan", 20, 180);
+        User user2 = new User("lisi2", 20, 181);
         List<User> list = new ArrayList<>();
         list.add(user1);
         list.add(user2);
